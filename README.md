@@ -43,8 +43,6 @@ Transcription saved to transcription_output.txt
 
 - **Model selection:** Whisper offers different model sizes (e.g., `"small"`, `"medium"`, `"large"`). You can modify the model size to trade off between transcription speed and accuracy.
 
----
-
 ## Known Issues and Future Improvements
 
 - **Microphone Check:** Ensure that your microphone is properly configured and functioning before running the script to avoid input issues.
