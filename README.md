@@ -1,52 +1,213 @@
 # EchoScript
 
-EchoScript is a real-time speech-to-text transcription tool built with Python, using OpenAI's Whisper model for highly accurate transcription. The audio is captured from your microphone, processed, transcribed, and saved to a text file automatically.
+Real-time microphone capture GUI that records audio, then runs OpenAI Whisper transcription on CPU and saves a Markdown report with timestamps.
+
+`PySide6` UI + `PyAudio` capture + `openai-whisper` (CPU). Single-file app: `main.py`.
+
+---
 
 ## Features
 
-- **Real-time audio capture:** Continuously records audio from the microphone in real-time.
-- **Accurate transcription:** Uses the Whisper model for high-quality speech-to-text transcription.
-- **Automatic file saving:** Saves the transcribed text to a `.txt` file after processing.
+* Start/Pause/Resume/Stop audio capture from a selected input device.
+* CPU-only Whisper transcription: choose model `tiny|base|small|medium`.
+* Optional translation to English (`task=translate`) or native-language transcription.
+* Language selection or auto-detection.
+* Live input-level meter and elapsed time display.
+* Segment list with timestamps.
+* Autosave to Markdown after each transcription and manual `.md` export.
+* Persistent settings via `QSettings` (model, language, translate flag, mic device, save dir).
+
+---
 
 ## Requirements
 
-Ensure you have the following dependencies installed to run EchoScript:
+* Python 3.9+ recommended.
+* FFmpeg on PATH (required by `openai-whisper`).
+* OS: Linux, macOS, Windows.
 
-- **Python 3.x**
-- The dependencies listed in `requirements.txt`.
+### Python dependencies
 
-### Installing Dependencies
-
-You can install the required dependencies by running:
-
-```bash
-pip install -r requirements.txt
+```sh
+PySide6
+pyaudio
+openai-whisper
+numpy
 ```
 
-## How to Run
+Install with:
 
-1. The script will start recording audio from your microphone. To stop recording, press `Ctrl + C`.
-2. After you stop the recording, the transcription process will begin automatically.
-3. The transcription will be saved to a file named `recordings/transcription_output.txt`.
-
-### Example Output
-
-While running the script, you’ll see output similar to this in your terminal:
-
-```bash
-Recording... Press Ctrl + C to stop.
-Transcription: This is an example transcription.
-Transcription saved to transcription_output.txt
+```sh
+python -m venv .venv
+. .venv/bin/activate  # Windows: .venv\Scripts\activate
+pip install -U pip wheel
+pip install PySide6 numpy openai-whisper pyaudio
 ```
 
-## Customization Options
+Notes:
 
-- **Model selection:** Whisper offers different model sizes (e.g., `"small"`, `"medium"`, `"large"`). You can modify the model size to trade off between transcription speed and accuracy.
+* FFmpeg: `brew install ffmpeg` (macOS), `sudo apt-get install ffmpeg` (Debian/Ubuntu), Windows: install FFmpeg and add `bin` to PATH.
+* `pyaudio`:
 
-## Known Issues and Future Improvements
+  * Linux: `sudo apt-get install portaudio19-dev` before `pip install pyaudio`.
+  * macOS: `brew install portaudio` then `pip install pyaudio`.
+  * Windows: if wheels fail, use prebuilt wheels or `pip install pipwin && pipwin install pyaudio`.
 
-- **Microphone Check:** Ensure that your microphone is properly configured and functioning before running the script to avoid input issues.
-- **Transcription Trigger:** The transcription process begins only after you stop the recording by pressing `Ctrl + C`. Be aware that no transcription will occur until the recording is stopped.
-- **Performance Considerations:** Depending on your system's resources and the size of the Whisper model used, the transcription process may take longer to complete. Larger models provide better accuracy but require more processing power.
-- **Project Growth Potential:** This project has great potential for expansion, and can serve as the foundation for a more complex, feature-rich application.
-- **Future Feature Expansion:** There is significant room for further development. New features, such as support for multiple languages, real-time transcription display, or advanced audio processing, can be implemented to enhance its capabilities. 
+---
+
+## Run
+
+```sh
+python main.py
+```
+
+On first run, choose:
+
+* Model
+* Language (empty = auto)
+* Translate to English (checkbox)
+* Mic device
+
+Click:
+
+* Start: begin recording.
+* Pause/Resume: toggle capture.
+* Stop & Transcribe: stop recording and run Whisper on CPU.
+* Save .md: manually export Markdown (in addition to autosave).
+
+Autosave path default: `./recordings/transcription_YYYYMMDD_HHMMSS.md`.
+
+---
+
+## How it works
+
+### Audio capture
+
+* Backend: `PyAudio`
+* Format: 16-bit PCM, mono, 16 kHz
+* Buffer: 1024 frames
+* Window: rolling buffer capped at \~10 minutes. When full, older audio is dropped (sliding window).
+
+### Transcription
+
+* Library: `openai-whisper`
+* Device: CPU (`device="cpu"`, `fp16=False`)
+* Task:
+
+  * Transcribe (default)
+  * Translate (if "Translate to English" is checked)
+* Language: explicit choice or auto (`language=None`).
+* Output:
+
+  * Full text set into the Transcript pane.
+  * Segment list with `[start -> end]` timestamps in a side pane.
+
+### Markdown output
+
+Generated by `render_markdown_document(text, result, meta)`:
+
+* Title
+* Meta:
+
+  * Created timestamp
+  * Model
+  * Language / Translate flag
+* Transcript body
+* Segments with timestamps
+
+Autosave occurs immediately after a successful transcription. Manual save is available via the "Save .md" button.
+
+### Settings persistence
+
+Stored via `QSettings` under organization `CATIK` and application `EchoScript`:
+
+* `model`
+* `language`
+* `translate_to_en`
+* `mic_index`
+* `save_dir`
+
+---
+
+## UI reference
+
+* Top bar: Model, Language, Translate checkbox, Mic selector.
+* Controls: Start, Pause, Resume, Stop & Transcribe, Duration `MM:SS`.
+* Status + input level bar.
+* Left pane: editable transcript text.
+* Right pane: read-only segments with timestamps.
+* Export row: Save .md.
+
+---
+
+## File layout
+
+Single file:
+
+```sh
+main.py
+```
+
+Generated artifacts:
+
+```sh
+./recordings/transcription_YYYYMMDD_HHMMSS.md  # autosave default
+# or user-chosen path via Save dialog
+```
+
+---
+
+## Key implementation points
+
+* `AudioRecorder` (QObject in QThread):
+
+  * Emits `chunkReady(np.ndarray[int16])`, `levelUpdated(int)`, `error(str)`, `stopped()`.
+  * Input-level is a simple RMS heuristic scaled to 0-100.
+* `Transcriber` (QObject in QThread):
+
+  * Lazy-loads Whisper model on first run.
+  * Runs `model.transcribe(...)` with `condition_on_previous_text=True`, `temperature=0.0`.
+* `MainWindow`:
+
+  * Aggregates chunks into a rolling buffer capped at \~10 minutes.
+  * Converts `int16` to `float32` in \[-1.0, 1.0] for Whisper.
+  * Drives autosave, manual save, and UI state transitions.
+
+---
+
+## Troubleshooting
+
+* Whisper not found: install `openai-whisper` and ensure FFmpeg is installed and on PATH.
+* No microphones listed: check OS audio permissions, ensure an input device exists, restart the app.
+* No audio captured: select a valid mic in the combo box; input devices show as `index: name`.
+* Choppy/overruns: increase CHUNK or verify CPU load; close other audio apps.
+* Long start times on first transcription: Whisper model is downloaded on first use.
+* Windows FFmpeg: confirm `where ffmpeg` returns a path.
+
+---
+
+## Limitations
+
+* CPU-only; no GPU acceleration.
+* No streaming/online transcription; processing happens after Stop.
+* Fixed sample rate (16 kHz) and mono channel.
+* Rolling capture trims to last \~10 minutes by design.
+* Simple level meter; not calibrated.
+
+---
+
+## Roadmap
+
+* Optional GPU support (CUDA/Metal) when available.
+* Configurable rolling window duration.
+* Live partial transcription during recording.
+* VAD-based auto-pause.
+* Export SRT/VTT.
+* Model download/selection UI with sizes and language coverage.
+
+---
+
+## Security and privacy
+
+* Audio resides in memory until transcription; the app writes only Markdown output files.
+* No network calls beyond Whisper model download handled by the library.
+* Review and delete `./recordings/*.md` if sensitive.

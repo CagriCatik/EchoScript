@@ -1,4 +1,5 @@
-pyaudio
-numpy
-whisper @ git+https://github.com/openai/whisper.git
+PySide6>=6.7
+pyaudio>=0.2.14
+numpy>=2.0
 torch
+openai-whisper
