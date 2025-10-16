@@ -4,3 +4,5 @@ numpy>=2.0
 torch
 openai-whisper
 python-docx
+requests
+pytest

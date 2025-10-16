@@ -1,213 +1,112 @@
 # EchoScript
 
-Real-time microphone capture GUI that records audio, then runs OpenAI Whisper transcription on CPU and saves a Markdown report with timestamps.
-
-`PySide6` UI + `PyAudio` capture + `openai-whisper` (CPU). Single-file app: `main.py`.
+EchoScript is a desktop transcription console that captures microphone audio, runs CPU-only OpenAI Whisper transcription, and saves enriched Markdown reports. The refactored architecture introduces modular workers, optional local LLM summarisation via Ollama, and a performance-focused pipeline while maintaining the familiar UX.
 
 ---
 
 ## Features
 
-* Start/Pause/Resume/Stop audio capture from a selected input device.
-* CPU-only Whisper transcription: choose model `tiny|base|small|medium`.
-* Optional translation to English (`task=translate`) or native-language transcription.
-* Language selection or auto-detection.
-* Live input-level meter and elapsed time display.
-* Segment list with timestamps.
-* Autosave to Markdown after each transcription and manual `.md` export.
-* Persistent settings via `QSettings` (model, language, translate flag, mic device, save dir).
+- Start / Pause / Resume / Stop audio capture from a chosen input device.
+- Rolling int16 ring buffer (configurable 1..60 minutes) with live input level meter and elapsed time display.
+- CPU-only Whisper transcription (`tiny | base | small | medium`) with language selection or auto-detect and optional translation to English.
+- Segments tab with timestamped entries, totals, and language footer.
+- Optional local LLM meeting-style summary powered by Ollama with configurable decode parameters (temperature, top-k, top-p, repeat penalty, max tokens, context window, stop sequences).
+- Ollama model discovery (HTTP API with CLI fallback), selectable summarisation model, and cached status reporting.
+- Summary tab showing the model/parameter snapshot, output text, and returned token count.
+- Autosave to Markdown after each transcription plus manual `.md` export. Markdown embeds transcript, segments, and summary metadata.
+- Persistent settings via `QSettings` (`org=CATIK`, `app=EchoScript`) for audio, transcription, and LLM options.
+- Diagnostics dialog exposing whisper/ollama runtime information and latency metrics.
 
 ---
 
 ## Requirements
 
-* Python 3.9+ recommended.
-* FFmpeg on PATH (required by `openai-whisper`).
-* OS: Linux, macOS, Windows.
+- Python 3.9+
+- FFmpeg on PATH (required by `openai-whisper`).
+- Optional: [Ollama](https://ollama.com) running locally for summary generation.
 
 ### Python dependencies
 
-```sh
+```
 PySide6
 pyaudio
-openai-whisper
 numpy
+torch
+openai-whisper
+python-docx
+requests
+pytest
 ```
 
 Install with:
 
-```sh
+```bash
 python -m venv .venv
-. .venv/bin/activate  # Windows: .venv\Scripts\activate
+source .venv/bin/activate  # Windows: .venv\Scripts\activate
 pip install -U pip wheel
-pip install PySide6 numpy openai-whisper pyaudio
+pip install -r requirements.txt
 ```
 
-Notes:
-
-* FFmpeg: `brew install ffmpeg` (macOS), `sudo apt-get install ffmpeg` (Debian/Ubuntu), Windows: install FFmpeg and add `bin` to PATH.
-* `pyaudio`:
-
-  * Linux: `sudo apt-get install portaudio19-dev` before `pip install pyaudio`.
-  * macOS: `brew install portaudio` then `pip install pyaudio`.
-  * Windows: if wheels fail, use prebuilt wheels or `pip install pipwin && pipwin install pyaudio`.
+For `pyaudio`, ensure PortAudio development headers are available (`sudo apt-get install portaudio19-dev`, `brew install portaudio`, or use `pipwin` on Windows).
 
 ---
 
-## Run
+## Running
 
-```sh
-python main.py
+```bash
+python app.py
 ```
 
-On first run, choose:
+On first launch:
 
-* Model
-* Language (empty = auto)
-* Translate to English (checkbox)
-* Mic device
+1. Select microphone, Whisper model, language (or auto), and whether to translate to English.
+2. (Optional) Enable **Generate Summary**, pick an Ollama model, and adjust decode parameters.
+3. Press **Start** to begin recording, **Pause/Resume** as needed, and **Stop** to transcribe.
 
-Click:
+After transcription:
 
-* Start: begin recording.
-* Pause/Resume: toggle capture.
-* Stop & Transcribe: stop recording and run Whisper on CPU.
-* Save .md: manually export Markdown (in addition to autosave).
+- Transcript text populates the main pane, segments appear in the Segments tab, and autosave writes to `recordings/` (overridable in settings).
+- If summarisation is enabled and Ollama is reachable, the Summary tab displays the generated brief along with the model/parameter snapshot and token count.
+- Use **Export Markdown** for manual export.
 
-Autosave path default: `./recordings/transcription_YYYYMMDD_HHMMSS.md`.
+The status bar shows `Whisper: <model> (CPU) | LLM: <model or Disabled>` and reflects buffer overruns.
 
 ---
 
-## How it works
+## Ollama integration
 
-### Audio capture
-
-* Backend: `PyAudio`
-* Format: 16-bit PCM, mono, 16 kHz
-* Buffer: 1024 frames
-* Window: rolling buffer capped at \~10 minutes. When full, older audio is dropped (sliding window).
-
-### Transcription
-
-* Library: `openai-whisper`
-* Device: CPU (`device="cpu"`, `fp16=False`)
-* Task:
-
-  * Transcribe (default)
-  * Translate (if "Translate to English" is checked)
-* Language: explicit choice or auto (`language=None`).
-* Output:
-
-  * Full text set into the Transcript pane.
-  * Segment list with `[start -> end]` timestamps in a side pane.
-
-### Markdown output
-
-Generated by `render_markdown_document(text, result, meta)`:
-
-* Title
-* Meta:
-
-  * Created timestamp
-  * Model
-  * Language / Translate flag
-* Transcript body
-* Segments with timestamps
-
-Autosave occurs immediately after a successful transcription. Manual save is available via the "Save .md" button.
-
-### Settings persistence
-
-Stored via `QSettings` under organization `CATIK` and application `EchoScript`:
-
-* `model`
-* `language`
-* `translate_to_en`
-* `mic_index`
-* `save_dir`
+- The UI lists installed Ollama models and exposes a **Reload** button.
+- When Ollama is unavailable, summary controls automatically disable with a banner message.
+- Decode parameters are persisted and embedded in Markdown exports alongside the LLM metadata.
 
 ---
 
-## UI reference
+## Testing
 
-* Top bar: Model, Language, Translate checkbox, Mic selector.
-* Controls: Start, Pause, Resume, Stop & Transcribe, Duration `MM:SS`.
-* Status + input level bar.
-* Left pane: editable transcript text.
-* Right pane: read-only segments with timestamps.
-* Export row: Save .md.
+Unit tests cover the ring buffer, Markdown atomic save, settings validation, and summariser retry behaviour.
 
----
-
-## File layout
-
-Single file:
-
-```sh
-main.py
-```
-
-Generated artifacts:
-
-```sh
-./recordings/transcription_YYYYMMDD_HHMMSS.md  # autosave default
-# or user-chosen path via Save dialog
+```bash
+pytest
 ```
 
 ---
 
-## Key implementation points
+## Architecture overview
 
-* `AudioRecorder` (QObject in QThread):
+| Module | Responsibility |
+| --- | --- |
+| `audio_io.py` | Ring buffer, PyAudio recorder worker, device enumeration |
+| `transcribe.py` | Whisper model manager and asynchronous transcription worker |
+| `summarizer.py` | Ollama HTTP/CLI integration and summary generation |
+| `markdown_io.py` | Markdown rendering and atomic save helper |
+| `settings.py` | Typed accessors for persisted settings |
+| `ui_main.py` | PySide6 MainWindow wiring, UI logic, threads |
+| `app.py` | Entry point |
 
-  * Emits `chunkReady(np.ndarray[int16])`, `levelUpdated(int)`, `error(str)`, `stopped()`.
-  * Input-level is a simple RMS heuristic scaled to 0-100.
-* `Transcriber` (QObject in QThread):
-
-  * Lazy-loads Whisper model on first run.
-  * Runs `model.transcribe(...)` with `condition_on_previous_text=True`, `temperature=0.0`.
-* `MainWindow`:
-
-  * Aggregates chunks into a rolling buffer capped at \~10 minutes.
-  * Converts `int16` to `float32` in \[-1.0, 1.0] for Whisper.
-  * Drives autosave, manual save, and UI state transitions.
+`tests/` holds targeted unit coverage for core utilities.
 
 ---
 
-## Troubleshooting
+## Optional DOCX export
 
-* Whisper not found: install `openai-whisper` and ensure FFmpeg is installed and on PATH.
-* No microphones listed: check OS audio permissions, ensure an input device exists, restart the app.
-* No audio captured: select a valid mic in the combo box; input devices show as `index: name`.
-* Choppy/overruns: increase CHUNK or verify CPU load; close other audio apps.
-* Long start times on first transcription: Whisper model is downloaded on first use.
-* Windows FFmpeg: confirm `where ffmpeg` returns a path.
-
----
-
-## Limitations
-
-* CPU-only; no GPU acceleration.
-* No streaming/online transcription; processing happens after Stop.
-* Fixed sample rate (16 kHz) and mono channel.
-* Rolling capture trims to last \~10 minutes by design.
-* Simple level meter; not calibrated.
-
----
-
-## Roadmap
-
-* Optional GPU support (CUDA/Metal) when available.
-* Configurable rolling window duration.
-* Live partial transcription during recording.
-* VAD-based auto-pause.
-* Export SRT/VTT.
-* Model download/selection UI with sizes and language coverage.
-
----
-
-## Security and privacy
-
-* Audio resides in memory until transcription; the app writes only Markdown output files.
-* No network calls beyond Whisper model download handled by the library.
-* Review and delete `./recordings/*.md` if sensitive.
+The legacy DOCX export tooling remains available via `python-docx` should you wish to extend the UI. The current release focuses on Markdown workflows.
