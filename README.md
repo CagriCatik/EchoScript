@@ -1,4 +1,8 @@
-# EchoScript
+<p align="center" style="font-size:48px; font-weight:500; line-height:1.8; margin:10;">
+  EchoScript
+</p>
+
+---
 
 Desktop tool for recording microphone audio, transcribing with OpenAI Whisper on CPU, and generating clean Markdown documentation. Modular design, with a system prompt overlay for safe LLM post-processing via Ollama.
 
