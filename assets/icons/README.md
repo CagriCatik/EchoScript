@@ -2,9 +2,8 @@
 
 Desktop tool for recording microphone audio, transcribing with OpenAI Whisper on CPU, and generating clean Markdown documentation. Modular design, with a system prompt overlay for safe LLM post-processing via Ollama.
 
-<p align="center">
-  <img src="./assets/image.png" alt="alt text" style="max-width:100%; width:600px; height:auto;">
-</p>
+
+![alt text](./image.png)
 
 ---
 
@@ -195,6 +194,18 @@ UI section: "System prompt overlay"
 * Editable overlay text stored in QSettings.
 * Applied only in the system role alongside a fixed baseline policy.
 * Transcript and segments are always passed as untrusted user content, wrapped in literal blocks and tags.
+
+---
+
+## Troubleshooting
+
+* Whisper not found: install `openai-whisper` and ensure FFmpeg is on PATH.
+* No microphones listed: check OS permissions and hardware; restart the app.
+* No audio captured: select a valid mic; devices show as `index: name`.
+* Overruns or choppy audio: increase CHUNK; reduce CPU load; close other audio apps.
+* Slow first transcription: Whisper model download occurs on first use.
+* Windows FFmpeg: confirm `where ffmpeg` returns a path.
+* Ollama connection: ensure the daemon is running; pull a model (e.g., `ollama pull llama3`).
 
 ---
 
