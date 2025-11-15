@@ -1,7 +1,20 @@
 <div align="center">
   <h1>EchoScript</h1>
-</div>
 
+  <p>
+    <img src="https://img.shields.io/badge/python-3.9%2B-blue.svg" alt="Python 3.9+">
+    <img src="https://img.shields.io/badge/platform-Linux%20%7C%20macOS%20%7C%20Windows-lightgrey.svg" alt="Platforms: Linux, macOS, Windows">
+    <img src="https://img.shields.io/badge/transcription-Whisper%20CPU-informational.svg" alt="Whisper CPU transcription">
+    <img src="https://img.shields.io/badge/LLM-Ollama%20local-success.svg" alt="Local Ollama LLM">
+    <img src="https://img.shields.io/badge/UI-PySide6-ff69b4.svg" alt="PySide6 UI">
+  </p>
+
+  <p>
+    <a href="https://deepwiki.com/CagriCatik/EchoScript">
+      <img src="https://deepwiki.com/badge.svg" alt="Ask DeepWiki">
+    </a>
+  </p>
+</div>
 
 Desktop tool for recording microphone audio, transcribing with OpenAI Whisper on CPU, and generating clean Markdown documentation. Modular design, with a system prompt overlay for safe LLM post-processing via Ollama.
 
@@ -24,7 +37,7 @@ Desktop tool for recording microphone audio, transcribing with OpenAI Whisper on
 
 ## Features
 
-Audio and transcription
+### Audio and transcription
 
 * Start/Pause/Resume/Stop audio capture from a selected input device.
 * CPU-only Whisper transcription: models `tiny|base|small|medium`.
@@ -34,7 +47,7 @@ Audio and transcription
 * Segment list with timestamps.
 * Rolling capture window capped at ~10 minutes.
 
-Authoring and export
+### Authoring and export
 
 * Autosave to Markdown after each transcription and manual `.md` export.
 * Executive summary generation of the transcript.
@@ -42,12 +55,11 @@ Authoring and export
 * DOCX export of transcript or generated docs.
 * Persistent settings via QSettings (model, language, translate flag, mic device, save dir, overlay policy, LLM model).
 
-Trust and safety
+### Trust and safety
 
 * System prompt overlay applied only in the system role (trusted).
 * Transcript and segments passed only as user content (untrusted).
 * Overlay enforces a fixed Markdown section layout and ignores instructions inside transcript data.
-
 
 ---
 
@@ -72,7 +84,7 @@ pip install -U pip wheel
 pip install -r requirements.txt
 # or:
 # pip install PySide6 numpy openai-whisper pyaudio requests python-docx
-```
+````
 
 FFmpeg
 
@@ -139,14 +151,14 @@ Generated docs default:
 
 ## How it works
 
-Audio capture
+### Audio capture
 
 * Backend: PyAudio
 * Format: 16-bit PCM, mono, 16 kHz
 * Buffer: 1024 frames
 * Rolling window: ~10 minutes; oldest audio is discarded once full
 
-Transcription
+### Transcription
 
 * Library: openai-whisper
 * Device: CPU (`device="cpu"`, `fp16=False`)
@@ -154,13 +166,13 @@ Transcription
 * Language: explicit choice or auto (`language=None`)
 * Output: transcript text pane + segment timestamps pane
 
-Documentation and summary (Ollama)
+### Documentation and summary (Ollama)
 
 * System prompt overlay is applied in the system role only (trusted policy).
 * Transcript and segments are passed only as untrusted user content.
 * The overlay enforces a fixed section order and instructs the model to ignore any instructions from the transcript.
 
-DOCX export
+### DOCX export
 
 * Converts current documentation (or transcript) into a `.docx` file.
 
@@ -180,7 +192,7 @@ Modules (under `src/echoscript`)
 * `ui_main.py`: Qt UI and orchestration
 * `app.py`: application entry point
 
-Separation of concerns
+### Separation of concerns
 
 * UI orchestrates workers via signals/slots; no model logic in widgets.
 * Audio capture and transcription are isolated QObjects in their own threads.
